@@ -1,0 +1,15 @@
+from pymol import cmd
+import chempy
+cmd.load('C:\\Users\\Lukas\\Documents\\Visual Studio 2017\\Projects\\Cytochromes\\Cytochromes\\bin\\Debug\\Input\\5a1r.cif')
+cmd.run('C:\\Users\\Lukas\\Documents\\Visual Studio 2017\\Projects\\Cytochromes\\Cytochromes\\bin\\Debug\\Computations\\5a1r\\pymol\\complex.py')
+cmd.hide('all')
+cmd.show('cartoon')
+cmd.show('spheres', 'T*')
+cmd.show('sticks', 'het')
+cmd.set('sphere_color', 'red', 'T*')
+cmd.set('cartoon_color', 'gray70')
+cmd.bg_color('white')
+cmd.set('ray_opaque_background', 0)
+cmd.set('cartoon_transparency', 0.3)
+cmd.orient('5a1r')
+cmd.png('D:\\work\\_phd\\_live\\ChannelsDB\\_misc\\cytochromes\\results\\5a1r.png', 200, 200, 300, 1)
