@@ -1,4 +1,5 @@
 ﻿using ChannelsDB.Core.Utils;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Linq;
 using System.Xml.Linq;
@@ -7,12 +8,28 @@ namespace ChannelsDB.Core.Models.Annotations
 {
     public class SiftsReport
     {
-        public Dictionary<string, (string, Dictionary<string, string>)> Sifts;
+        public Dictionary<string, (string, Dictionary<string, string>)> Sifts { get; set; } = new Dictionary<string, (string, Dictionary<string, string>)>();
+
+        /*
+        public SiftsReport(JToken json) {
+            foreach (var item in json.Children())
+            {
+                var uniprotId = ((JProperty)item).Name;
+                var child = item.Children();
+                foreach (var mapping in item.Children()["mappings"].Children())
+                {
+                    var chainID = mapping["struct_asym_id"];
+                    var uStart = mapping["unp_start"];
+                    var uEnd = mapping["unp_end"];
+                    var start = mapping["start"];
+                    var pStart = mapping["start"]["author_residue_number"];
+                    var pEnd = mapping["end"]["author_residue_number"];
+                }
+            }
+        }*/
 
         public SiftsReport(XElement e)
         {
-            Sifts = new Dictionary<string, (string, Dictionary<string, string>)>();
-
             foreach (var item in e.ElementsAnyNS("entity"))
             {
                 var chain = item.Attribute("entityId").Value;
@@ -33,5 +50,15 @@ namespace ChannelsDB.Core.Models.Annotations
                 }
             }
         }
+    }
+
+    public class SiftsEntry {
+        public string UniProtId { get; set; }
+        public int MyProperty { get; set; }
+    }
+
+    public class Mapping {
+        public string Chain { get; set; }
+
     }
 }

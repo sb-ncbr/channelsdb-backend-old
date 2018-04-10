@@ -10,7 +10,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 
 namespace ChannelsDB.API.Controllers
-{   
+{
     [Route("[controller]")]
     public class AnnotationsController : Controller
     {
@@ -32,7 +32,7 @@ namespace ChannelsDB.API.Controllers
             {
                 cl.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/xml"));
 
-                var xmlString = ChannelsDB.Core.Utils.Extensions.DownloadFTPCompressedGz(@"ftp://ftp.ebi.ac.uk", $@"/pub/databases/msd/sifts/xml/{pdbID}.xml.gz");
+                var xmlString = Core.Utils.Extensions.DownloadFTPCompressedGz(@"ftp://ftp.ebi.ac.uk", $@"/pub/databases/msd/sifts/xml/{pdbID}.xml.gz");
 
                 if (String.IsNullOrEmpty(xmlString)) return new ContentResult() { Content = new Annotation().ToJson() };
 

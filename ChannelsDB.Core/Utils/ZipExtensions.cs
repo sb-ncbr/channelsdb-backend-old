@@ -83,21 +83,45 @@ namespace ChannelsDB.Core.Utils
         }
 
 
-
-        public static bool AddFileToArchive(string archive, string destination, string filename)
+        /// <summary>
+        /// Add file to a designated zip archive. Creates one if it does not exists
+        /// </summary>
+        /// <param name="archive">zip file</param>
+        /// <param name="sourceFile"></param>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        public static bool AddFileToArchive(string archive, string sourceFile, string filename)
         {
-            try
+            if (File.Exists(archive))
             {
-                using (var zip = ZipFile.Open(archive, ZipArchiveMode.Update))
+
+                try
                 {
-                    zip.CreateEntryFromFile(destination, filename);
+                    using (var zip = ZipFile.Open(archive, ZipArchiveMode.Update))
+                    {
+                        var oldEntry = zip.Entries.FirstOrDefault(x => x.Name == filename);
+                        if (oldEntry != null) oldEntry.Delete();
+
+                        zip.CreateEntryFromFile(sourceFile, filename);
+                    }
+                    return true;
                 }
-                return true;
+                catch (Exception)
+                {
+                    return false;
+                }
             }
-            catch (Exception)
+            else
             {
-                return false;
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(archive));
+                    CreateArchiveFromFile(archive, sourceFile, filename);
+                    return true;
+                }
+                catch (Exception) { return false; }
             }
+
         }
 
 

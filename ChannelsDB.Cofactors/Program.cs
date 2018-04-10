@@ -22,30 +22,26 @@ namespace ChannelsDB.Cofactors
             Config c = JsonConvert.DeserializeObject<Config>(File.ReadAllText(args[0]));
             var i = 0;
             var added = 0;
+            var query = c.CofactorQueries.Values.Aggregate((a, b) => a + "," + b);
 
             var obj = new object();
-            
+
             Console.WriteLine("Parsing metadata");
             Dictionary<string, IEnumerable<string>> metadata = GetMetadata(c);
 
             Console.WriteLine("Resolving entries to be processed");
-            var idsToProcess = GetIdsToProcess(metadata, c);                      
-            var zeroChannels = File.Exists("no_channels.txt") ? File.ReadAllLines("no_channels.txt").ToList() : new List<string>();
+            var idsToProcess = GetIdsToProcess(metadata, c);
+            var idsToProcessCount = idsToProcess.Count();
+                        
+            Console.WriteLine($"{idsToProcessCount} Cofactor entries to be processed.");
 
-            idsToProcess = idsToProcess.Where(x => !zeroChannels.Contains(x)).ToArray();
 
-
-            Console.WriteLine($"{idsToProcess.Count()} Cofactor entries to be processed.");
-            File.WriteAllLines($@"{DateTime.Today.Day}{DateTime.Today.Month}{DateTime.Today.Year}_structures.txt", idsToProcess);
-
-            // run calculations
-            Parallel.ForEach(idsToProcess, new ParallelOptions() { MaxDegreeOfParallelism = 12 }, item =>
+            Parallel.ForEach(idsToProcess, new ParallelOptions() { MaxDegreeOfParallelism = c.Threads }, item =>
             {
                 try
                 {
                     Directory.CreateDirectory(Path.Combine("Computations", item));
-                    DownloadStructure(item);
-                    var str = BuildXML(item,c);
+                    var str = BuildXML(item, c, query);
 
 
                     ProcessStartInfo info = new ProcessStartInfo()
@@ -58,7 +54,7 @@ namespace ChannelsDB.Cofactors
 
                     Process.Start(info).WaitForExit();
 
-                    lock (obj) { Console.WriteLine(++i); }
+                    lock (obj) { Console.WriteLine($"{++i}/{idsToProcessCount}"); }
                 }
                 catch (Exception e)
                 {
@@ -66,17 +62,14 @@ namespace ChannelsDB.Cofactors
                 }
             });
 
-            
+
             foreach (var item in Directory.GetDirectories("Computations"))
             {
                 var id = Path.GetFileNameWithoutExtension(item);
                 var path = Path.Combine("Computations", id, "json", "data.json");
 
-                if (!File.Exists(path))
-                {
-                    zeroChannels.Add(id);
-                    continue;
-                }
+                if (!File.Exists(path)) continue;
+
 
                 var channels = JsonConvert.DeserializeObject<MoleReport>(File.ReadAllText(path));
 
@@ -84,21 +77,16 @@ namespace ChannelsDB.Cofactors
                 {
                     added++;
 
-                    Directory.CreateDirectory(Path.Combine(c.DbLocation, id.Substring(1, 2), id));
-                    ChannelsDB.Core.Utils.Extensions.CreateArchiveFromFile(Path.Combine(c.DbLocation, id.Substring(1, 2), id, "data.zip"),
-                                                                           Path.Combine(item, "json", "data.json"),
-                                                                           "cofactors.json");
+                    var archive = Path.Combine(c.ChannelsDB, id.Substring(1, 2), id, "data.zip");
+                    var source = Path.Combine(item, "json", "data.json");
+                    AddFileToArchive(archive, source, "cofactors.json");
                 }
-                else zeroChannels.Add(id);
             }
 
             Console.WriteLine($"New entries in the database: {added}");
-            File.WriteAllLines("no_channels.txt", zeroChannels);
 
             //clean the mess
             Directory.Delete("Computations", true);
-            Directory.GetFiles("Inputs").ToList().ForEach(x => File.Delete(x));
-
         }
 
         private static void DownloadStructure(string item)
@@ -113,11 +101,11 @@ namespace ChannelsDB.Cofactors
             }
         }
 
-        private static string BuildXML(string id, Config c)
+        private static string BuildXML(string id, Config c, string query)
         {
             var nonActive = new XElement("NonActiveParts");
             var root = new XElement("Tunnels");
-            var input = new XElement("Input", Path.Combine(@"Inputs", $"{id}.cif"));
+            var input = new XElement("Input", Path.Combine(c.Structures, $"{id}.cif"));
             var WD = new XElement("WorkingDirectory", Path.Combine(@"Computations", id));
 
             var par = new XElement("Params",
@@ -154,7 +142,7 @@ namespace ChannelsDB.Cofactors
 
 
 
-            var origins = new XElement("Origins", new XElement("Origin", new XElement("Query", $"Or({c.CofactorQueries.Values.Aggregate((a, b) => a + "," + b)})")));
+            var origins = new XElement("Origins", new XElement("Origin", new XElement("Query", $"Or({query})")));
 
             root.Add(input);
             root.Add(WD);
@@ -178,13 +166,18 @@ namespace ChannelsDB.Cofactors
 
         private static string[] GetIdsToProcess(Dictionary<string, IEnumerable<string>> metadata, Config config)
         {
-            string[] dbContent;
-            using (HttpClient c = new HttpClient())
+            string[] dbContent = new string[0];
+
+            if (Directory.GetDirectories(config.ChannelsDB).Count() > 0)
             {
-                var str = c.GetStringAsync(@"http://webchem.ncbr.muni.cz/API/ChannelsDB/Content").Result;
-                dbContent = JsonConvert.DeserializeObject<Dictionary<string, EntryChannels>>(str).Where(x => x.Value.Counts[3] > 0).Select(x => x.Key).ToArray();
+
+                dbContent = Directory.GetDirectories(config.ChannelsDB)
+                                    .SelectMany(x => Directory.GetDirectories(x))
+                                    .Select(x => Path.GetFileNameWithoutExtension(x))
+                                    .ToArray();
             }
-            
+            var noTunnels = File.Exists("no_tunnels.txt") ? File.ReadAllLines("no_tunnels.txt") : new string[0];
+            dbContent = dbContent.Concat(noTunnels).ToArray();
 
             var pdbsWithCofactors = metadata.Where(x => x.Value.Any(y => config.Ligands.Contains(y))).Select(x => x.Key);
             return pdbsWithCofactors.Where(x => !dbContent.Contains(x)).ToArray();
@@ -208,7 +201,8 @@ namespace ChannelsDB.Cofactors
         }
     }
 
-    class EntryChannels {
+    class EntryChannels
+    {
         public int[] Counts { get; set; }
     }
 }

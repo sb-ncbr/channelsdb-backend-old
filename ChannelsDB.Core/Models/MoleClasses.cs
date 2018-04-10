@@ -5,19 +5,6 @@ using System.Text;
 
 namespace ChannelsDB.Core.Models
 {
-
-    public class MoleReport
-    {
-        public string Version { get; set; }
-        public Config Config { get; set; }
-        public bool FoundOrigin { get; set; }
-        public int Timing { get; set; }
-        public Channels Channels { get; set; }
-        public Volumes Cavities { get; set; }
-        public Origins Origins { get; set; }
-
-    }
-
     public class Config
     {
         public bool InMembrane { get; set; }
@@ -30,6 +17,19 @@ namespace ChannelsDB.Core.Models
         public string MemEmbedLocation { get; set; }
         public int Threads { get; set; }
     }
+
+    public class MoleReport
+    {
+        public string Version { get; set; }
+        public Config Config { get; set; }
+        public bool FoundOrigin { get; set; }
+        public int Timing { get; set; }
+        public Channels Channels { get; set; }
+        public Volumes Cavities { get; set; }
+        public Origins Origins { get; set; }
+
+    }
+    
 
     public class Channels
     {
@@ -88,6 +88,7 @@ namespace ChannelsDB.Core.Models
     public class Tunnel
     {
         public string Type { get; set; }
+        public string Fingerprint { get; set; }
         public string Id { get; set; }
         public string Cavity { get; set; }
         public bool Auto { get; set; }
@@ -100,12 +101,16 @@ namespace ChannelsDB.Core.Models
     public class Properties
     {
         public int Charge { get; set; }
+        public int Ionizable { get; set; }
         public int NumPositives { get; set; }
         public int NumNegatives { get; set; }
         public float Hydrophobicity { get; set; }
         public float Hydropathy { get; set; }
         public float Polarity { get; set; }
         public int Mutability { get; set; }
+        public float LogD { get; set; }
+        public float LogP { get; set; }
+        public float LogS { get; set; }
     }
 
     public class Layers
@@ -113,7 +118,7 @@ namespace ChannelsDB.Core.Models
         public string[] ResidueFlow { get; set; }
         public string[] HetResidues { get; set; }
         public Layerweightedproperties LayerWeightedProperties { get; set; }
-        public Layersinfo[] LayersInfo { get; set; }
+        public LayersInfo[] LayersInfo { get; set; }
     }
 
     public class Layerweightedproperties
@@ -121,20 +126,25 @@ namespace ChannelsDB.Core.Models
         public float Hydrophobicity { get; set; }
         public float Hydropathy { get; set; }
         public float Polarity { get; set; }
+        public float LogD { get; set; }
+        public float LogP { get; set; }
+        public float LogS { get; set; }
         public int Mutability { get; set; }
+        
     }
 
-    public class Layersinfo
+    public class LayersInfo
     {
-        public Layergeometry LayerGeometry { get; set; }
+        public LayerGeometry LayerGeometry { get; set; }
         public string[] Residues { get; set; }
         public string[] FlowIndices { get; set; }
         public Properties Properties { get; set; }
     }
 
-    public class Layergeometry
+    public class LayerGeometry
     {
         public float MinRadius { get; set; }
+        public float MinBRadius { get; set; }
         public float MinFreeRadius { get; set; }
         public float StartDistance { get; set; }
         public float EndDistance { get; set; }
@@ -146,6 +156,7 @@ namespace ChannelsDB.Core.Models
     {
         public float Radius { get; set; }
         public float FreeRadius { get; set; }
+        public float BRadius { get; set; }
         public float T { get; set; }
         public float Distance { get; set; }
         public float X { get; set; }

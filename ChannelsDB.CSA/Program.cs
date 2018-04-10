@@ -1,14 +1,10 @@
 ﻿using ChannelsDB.Core.Models;
-using ChannelsDB.Core.PyMOL;
-using ChannelsDB.Core.Utils;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -17,96 +13,74 @@ namespace ChannelsDB.CSA
 {
     class Program
     {
-        private static string results = @"D:\Computations\Results";
-        private static string final = @"D:\Computations\Final";
-        private static string MOLE = @"D:\MOLE.API\Software\MOLE\mole2.exe";
-        private static string PyMOL = @"C:\Program Files\PyMOL\PyMOL\PyMOL.exe";
-
         static void Main(string[] args)
         {
-            Directory.SetCurrentDirectory(results);
+            Config c = JsonConvert.DeserializeObject<Config>(File.ReadAllText(args[0]));
+            Directory.CreateDirectory("Computations");
             CSA csa = new CSA("CSA.txt");
             object locker = new object();
-            var i = 0;
 
 
-            //var map = ParseMapping("pdbtosp.txt");
-
-            Parallel.ForEach(csa.Database, new ParallelOptions() { MaxDegreeOfParallelism = 16 }, x =>
+            Parallel.ForEach(csa.Database, new ParallelOptions() { MaxDegreeOfParallelism = c.Threads }, x =>
             {
                 try
                 {
-                    if (!File.Exists(Path.Combine()))
+                    if (File.Exists(Path.Combine(c.Structures, $"{x.Key}.cif")))
                     {
-                        ComputeChannels(x);
-                        GenerateFigures(x.Key);
-                    }
-
-                    lock (locker)
-                    {
-                        i++;
-                        Console.WriteLine(i);
+                        ComputeChannels(x.Key, x.Value, c);
+                        PickResults(x.Key, c);
                     }
                 }
                 catch (Exception)
                 {
-                    File.AppendAllText("errorlog.log", x.Key + "\n");
+                    lock (locker) File.AppendAllText("errorlog.log", x.Key + "\n");
                 }
             });
         }
 
-        private static void GenerateFigures(string id)
+
+
+        private static void PickResults(string key, Config c)
         {
-            Directory.CreateDirectory(Path.Combine(final, id));
+            Dictionary<string, MoleReport> results = new Dictionary<string, MoleReport>();
 
-            Dictionary<string, MoleReport> computations = new Dictionary<string, MoleReport>();
-            StringBuilder sb = new StringBuilder();
-
-
-            foreach (var item in Directory.GetDirectories(Path.Combine(results, id)))
+            foreach (var item in Directory.GetDirectories(Path.Combine("Computations", key)))
             {
-                var rep = JsonConvert.DeserializeObject<MoleReport>(File.ReadAllText(Path.Combine(item, "json", "data.json")));
-                computations.Add(Path.GetFileName(item), rep);
+                var path = Path.Combine(item, "json", "data.json");
+                if (File.Exists(path))
+                {
+                    var channels = JsonConvert.DeserializeObject<MoleReport>(File.ReadAllText(path));
+                    results.Add(path, channels);
+                }
+
             }
 
-            var topActiveSite = computations.OrderByDescending(x => x.Value.Channels.Tunnels.Count()).First();
+            var ordered = results
+                .Where(x => x.Value.Channels.Tunnels.Count() > 0)
+                .OrderByDescending(x => x.Value.Channels.Tunnels.Count());
 
-            if (topActiveSite.Value.Channels.Tunnels.Count() < 1) return;
+            var toCopy = ordered.FirstOrDefault();
 
-            File.WriteAllText(Path.Combine(final, id, $"{id}_{topActiveSite.Key}.py"), topActiveSite.Value.Channels.ReportToDownload("pymol", ""));
+            if (toCopy.Key != null)
+            {
+                var archive = Path.Combine(c.ChannelsDB, key.Substring(1, 2), key, "data.zip");
+                Console.WriteLine($"{toCopy.Key}   {toCopy.Value.Channels.Tunnels.Count()}");
+                Core.Utils.Extensions.AddFileToArchive(archive, toCopy.Key, "csa.json");
+            }
 
-            var resultPath = Path.Combine(final, id, id + ".py");
 
-
-
-
-            PyMOL p = new PyMOL(PyMOL);
-
-            var script =
-            p.GenerateVisualizationScript(
-                Path.Combine(@"D:\databases\PDB\bio_assemblies\complete", id + ".cif"),
-                Path.Combine(final, id, $"{id}_{topActiveSite.Key}.py"),
-                Path.Combine(final, id, $"{id}.png")
-                );
-
-            File.WriteAllLines(resultPath, script);
-
-            p.MakePicture(resultPath);         
         }
 
-
-
-
-        private static void ComputeChannels(KeyValuePair<string, List<ActiveSite>> entry)
+        private static void ComputeChannels(string pdbId, List<ActiveSite> activeSites, Config c)
         {
-            for (int i = 0; i < entry.Value.Count; i++)
+            for (int i = 0; i < activeSites.Count; i++)
             {
-                Directory.CreateDirectory(Path.Combine(entry.Key, i.ToString()));
-                var xml = BuildXML(entry, i);
+                Directory.CreateDirectory(Path.Combine("Computations", pdbId, i.ToString()));
+                var xml = BuildXML(pdbId, activeSites, i, c);
 
                 ProcessStartInfo info = new ProcessStartInfo()
                 {
-                    FileName = MOLE,
+                    FileName = c.Mole,
                     Arguments = xml,
                     RedirectStandardError = true,
                     UseShellExecute = false,
@@ -121,12 +95,12 @@ namespace ChannelsDB.CSA
 
         }
 
-        private static string BuildXML(KeyValuePair<string, List<ActiveSite>> entry, int id)
+        private static string BuildXML(string pdbId, List<ActiveSite> activeSites, int id, Config c)
         {
             var root = new XElement("Tunnels");
             var input = new XElement("Input",
-                Path.Combine(@"D:\databases\PDB\bio_assemblies\complete", entry.Key + ".cif"));
-            var WD = new XElement("WorkingDirectory", Path.Combine(results, entry.Key, id.ToString()));
+                Path.Combine(c.Structures, $"{pdbId}.cif"));
+            var WD = new XElement("WorkingDirectory", Path.Combine("Computations", pdbId, id.ToString()));
 
             var nonActive = new XElement("NonActiveParts",
                 new XElement("Query", "HetResidues().Filter(lambda m: m.IsNotConnectedTo(AminoAcids()))"));
@@ -160,7 +134,7 @@ namespace ChannelsDB.CSA
                     new XAttribute("PoresUser", "0")));
 
 
-            var origins = BuildOriginElement(entry.Value.ElementAt(id), "Origin");
+            var origins = BuildOriginElement(activeSites.ElementAt(id), "Origin");
 
             root.Add(input);
             root.Add(WD);
@@ -170,7 +144,7 @@ namespace ChannelsDB.CSA
             root.Add(origins);
 
 
-            var path = Path.Combine(results, entry.Key, id.ToString(), "input.xml");
+            var path = Path.Combine("Computations", pdbId, id.ToString(), "input.xml");
 
             using (TextWriter writer = File.CreateText(path))
             {

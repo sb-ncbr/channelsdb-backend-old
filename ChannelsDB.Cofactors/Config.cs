@@ -9,10 +9,12 @@ namespace ChannelsDB.Cofactors
     class Config
     {
         private Dictionary<string, string> _cofactorQueries;
-        private string[] _ligands;
+        public string[] Ligands { get; private set; }
 
+        public int Threads { get; set; }
         public string PDBMetadataDirectory { get; set; }
-        public string DbLocation { get; set; }
+        public string ChannelsDB { get; set; }
+        public string Structures { get; set; }
         public string Mole { get; set; }
 
         public Dictionary<string, string> CofactorQueries
@@ -23,7 +25,7 @@ namespace ChannelsDB.Cofactors
             }
             set
             {
-                _ligands = ParseLigands(value);
+                Ligands = ParseLigands(value);
                 _cofactorQueries = value;
             }
         }
@@ -39,13 +41,7 @@ namespace ChannelsDB.Cofactors
             }
         }
 
-        public string[] Ligands
-        {
-            get
-            {
-                return _ligands;
-            }
-        }
+        
 
 
         public string[] ParseLigands(Dictionary<string, string> p)
